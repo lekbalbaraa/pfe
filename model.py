@@ -48,4 +48,4 @@ print("Confusion Matrix:\n", confusion_matrix(y_test, y_pred))
 # Step 10: Plot feature importance
 xgb.plot_importance(model, max_num_features=10)
 plt.tight_layout()
-plt.show()
+plt.show() 
