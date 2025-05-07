@@ -6,6 +6,7 @@ from sklearn.ensemble import RandomForestClassifier
 from xgboost import XGBClassifier
 from sklearn.metrics import classification_report
 from imblearn.over_sampling import SMOTE
+from sklearn.impute import SimpleImputer
 
 # 1. Load and prepare the data
 df = pd.read_csv('iot23_combined.csv')  # Replace with your file
@@ -35,6 +36,9 @@ y_multiclass = df['encoded_label']
 X_train_bin, X_test_bin, y_train_bin, y_test_bin, y_train_multi, y_test_multi = train_test_split(
     X, y_binary, y_multiclass, test_size=0.2, stratify=y_binary, random_state=42
 )
+
+imputer = SimpleImputer(strategy='mean')  # or 'median', 'most_frequent'
+X_imputed = imputer.fit_transform(X)
 
 # 6. Apply SMOTE to balance the binary data
 smote = SMOTE(random_state=42)
