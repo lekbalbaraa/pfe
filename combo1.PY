@@ -60,14 +60,14 @@ y_train_attacks_labels = y_train_multi[y_train_binary == 1]
 le_multi = LabelEncoder()
 le_multi.fit(y_train_attacks_labels)
 
+# Filter test samples that have known classes only
+mask = y_test_attack_labels.isin(le_multi.classes_)
+X_test_attack = X_test_attack[mask]
+y_test_attack_labels = y_test_attack_labels[mask]
+
+#Encoding 
 y_train_attacks_encoded = le_multi.transform(y_train_attacks_labels)
 y_test_attack_encoded = le_multi.transform(y_test_attack_labels)
-
-# === ✅ Filter out test samples with unseen labels ===
-valid_classes = np.unique(y_train_attacks_encoded)
-mask = np.isin(y_test_attack_encoded, valid_classes)
-X_test_attack = X_test_attack[mask]
-y_test_attack_encoded = y_test_attack_encoded[mask]
 
 # Apply SMOTE for balanced attack types
 X_train_multi_bal, y_train_multi_bal = SMOTE(random_state=42).fit_resample(
