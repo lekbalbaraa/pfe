@@ -66,19 +66,37 @@ plt.show()
 print("Filtering predicted attacks...")
 attack_indices = np.where(y_pred_binary == 1)[0]
 X_test_attack = X_test[attack_indices]
-y_test_attack_labels = y_test_multi.iloc[attack_indices]
+
+# **Retrieve correct attack labels as text strings (fix)**
+y_test_attack_labels = df.loc[y_test_binary.index, label_col].iloc[attack_indices]
 
 # Extract training data for actual attacks only
 print("Extracting training data for attacks...")
 X_train_attacks = X_train[y_train_binary == 1]
-y_train_attacks_labels = y_train_multi[y_train_binary == 1]
+
+# **Retrieve attack labels as text before encoding (fix)**
+y_train_attacks_labels = df.loc[y_train_binary.index, label_col][y_train_binary == 1]
+
+# === Debugging: Check Unique Labels in Training Data ===
+print("\nDEBUG: Unique attack labels in training dataset:", y_train_attacks_labels.unique())
 
 # Encode attack labels
 print("Encoding attack labels...")
 le_multi = LabelEncoder()
-le_multi.fit(df[df['binary_label'] == 1]['label'])  # Train only on attack labels
+le_multi.fit(df[df['binary_label'] == 1][label_col])  # Ensure all attack labels are used
 
-# Transform attack labels
+# === Debugging: Check LabelEncoder learned labels ===
+print("\nDEBUG: Labels seen by LabelEncoder:", le_multi.classes_)
+
+# === Debugging: Compare Dataset Labels vs LabelEncoder ===
+missing_labels = set(y_train_attacks_labels) - set(le_multi.classes_)
+print("\nDEBUG: Labels missing from LabelEncoder:", missing_labels)
+
+# **Filter out labels not seen during encoding (fix)**
+if missing_labels:
+    y_train_attacks_labels = y_train_attacks_labels[y_train_attacks_labels.isin(le_multi.classes_)]
+
+# Transform attack labels (now correctly using text labels)
 print("Transforming attack labels...")
 y_train_attacks_encoded = le_multi.transform(y_train_attacks_labels)
 y_test_attack_encoded = le_multi.transform(y_test_attack_labels)
