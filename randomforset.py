@@ -1,82 +1,69 @@
 import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split, GridSearchCV
-from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay
+from sklearn.metrics import classification_report
 import matplotlib.pyplot as plt
-import time
-from imblearn.over_sampling import SMOTE
+import seaborn as sns
 
-# Load dataset
-filepath = "iot23_combined.csv"
-df = pd.read_csv(filepath)
-del df['Unnamed: 0']
+# 1. Load dataset
+df = pd.read_csv('iot23_combined.csv')  # Make sure this path is correct
 
-# Remove classes with fewer than 2 samples
-value_counts = df['label'].value_counts()
-valid_labels = value_counts[value_counts >= 2].index
-df = df[df['label'].isin(valid_labels)]
+# 2. Filter out rare classes (less than 2 samples)
+min_samples_required = 2
+label_col = 'label'
+class_counts = df[label_col].value_counts()
+valid_classes = class_counts[class_counts >= min_samples_required].index
+df = df[df[label_col].isin(valid_classes)]
 
-# Feature selection
-X = df[['duration', 'orig_bytes', 'resp_bytes', 'missed_bytes', 'orig_pkts', 'orig_ip_bytes', 
-        'resp_pkts', 'resp_ip_bytes', 'proto_icmp', 'proto_tcp', 'proto_udp', 
-        'conn_state_OTH', 'conn_state_REJ', 'conn_state_RSTO', 'conn_state_RSTOS0', 
-        'conn_state_RSTR', 'conn_state_RSTRH', 'conn_state_S0', 'conn_state_S1', 
-        'conn_state_S2', 'conn_state_S3', 'conn_state_SF', 'conn_state_SH', 'conn_state_SHR']]
-Y = df['label']
+# 3. Split features and labels
+X = df.drop(label_col, axis=1)
+y = df[label_col]
 
-# Stratified train/test split
-X_train, X_test, Y_train, Y_test = train_test_split(
-    X, Y, test_size=0.2, random_state=10, stratify=Y)
+# 4. Encode the labels
+le = LabelEncoder()
+y_encoded = le.fit_transform(y)
 
-# Apply SMOTE to handle class imbalance
-smote = SMOTE(random_state=10)
-X_train_res, Y_train_res = smote.fit_resample(X_train, Y_train)
+# 5. Train-test split
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y_encoded, test_size=0.2, random_state=42, stratify=y_encoded
+)
 
-# Hyperparameter tuning with GridSearchCV
-param_grid = {
-    'n_estimators': [100, 150, 200],
-    'max_depth': [10, 20, 30],
-    'min_samples_split': [2, 5],
-    'min_samples_leaf': [1, 2],
-    'class_weight': ['balanced', None]  # Trying balanced class weight
-}
+# 6. Train Random Forest
+rf = RandomForestClassifier(
+    n_estimators=100,
+    max_depth=None,
+    class_weight='balanced',
+    random_state=42,
+    n_jobs=-1
+)
+rf.fit(X_train, y_train)
 
-rf = RandomForestClassifier(random_state=10)
+# 7. Predict
+y_pred = rf.predict(X_test)
 
-grid_search = GridSearchCV(estimator=rf, param_grid=param_grid, cv=3, verbose=2, n_jobs=-1, scoring='accuracy')
-grid_search.fit(X_train_res, Y_train_res)
+# 8. Decode predictions back to labels
+y_test_labels = le.inverse_transform(y_test)
+y_pred_labels = le.inverse_transform(y_pred)
 
-# Best hyperparameters
-print("Best Hyperparameters:", grid_search.best_params_)
+# 9. Classification report
+report = classification_report(y_test_labels, y_pred_labels, target_names=le.classes_, output_dict=True)
+report_df = pd.DataFrame(report).transpose()
+print("\nClassification Report:\n")
+print(report_df)
 
-# Best Random Forest Model
-best_rf = grid_search.best_estimator_
+# 10. Optional: save report to CSV
+# report_df.to_csv("rf_classification_report.csv", index=True)
 
-# Start timer
-start = time.time()
-print("Training Random Forest...\n")
+# 11. Plot Feature Importance (top 20)
+importances = rf.feature_importances_
+feat_names = X.columns
+feat_importance_df = pd.DataFrame({'feature': feat_names, 'importance': importances})
+feat_importance_df = feat_importance_df.sort_values(by='importance', ascending=False).head(20)
 
-# Fit the model
-best_rf.fit(X_train_res, Y_train_res)
-
-# Predict
-y_pred = best_rf.predict(X_test)
-
-# End timer
-end = time.time()
-
-# Evaluation
-print("Random Forest Accuracy:", best_rf.score(X_test, Y_test))
-print("\nClassification Report:")
-print(classification_report(Y_test, y_pred))
-
-print("Time cost:", round(end - start, 2), "seconds")
-
-# Confusion Matrix
-cm = confusion_matrix(Y_test, y_pred, labels=best_rf.classes_)
-disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=best_rf.classes_)
-fig, ax = plt.subplots(figsize=(12, 10))
-disp.plot(ax=ax, xticks_rotation='vertical', cmap="Blues")
-plt.title("Confusion Matrix")
+plt.figure(figsize=(10, 6))
+sns.barplot(data=feat_importance_df, x='importance', y='feature', palette='Blues_d')
+plt.title('Top 20 Feature Importances (Random Forest)')
 plt.tight_layout()
 plt.show()
